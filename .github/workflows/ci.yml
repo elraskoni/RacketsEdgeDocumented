@@ -9,8 +9,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install ruff==0.16.10
       - run: ruff check .
@@ -35,12 +35,12 @@ jobs:
       TEST_DB_PASSWORD: test
       TEST_DB_NAME: racketedge_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: "3.12", cache: pip }
       - run: pip install -r requirements-dev.txt
       - run: python -m pytest --junitxml=reports/junit.xml -o junit_family=xunit2
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with: { name: junit, path: reports/junit.xml }
 
@@ -48,5 +48,5 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: docker build -t racketedge-api:${{ github.sha }} .
