@@ -2,7 +2,7 @@
 
 A tennis data and prediction API, built end to end by one engineer: data collection, validation, storage, a REST API, rating and machine-learning models, and an automated test and delivery pipeline.
 
-This repository documents how it is built and what was learned. The source code is private; the documents describe the design, the engineering practices and the results, including the ones that did not work out.
+This repository contains the codebase and its documentation. Two parts are private: the parser for the production data source, and the trained models with their tuned parameters. In their place, a **synthetic source** simulates tennis point by point, so everything else runs end to end on your machine, using the same code as production: the raw-first archive, the clean Parquet build, the serving database with its atomic swap, the REST API, and the tests.
 
 ## At a glance
 
@@ -14,7 +14,7 @@ This repository documents how it is built and what was learned. The source code 
 | Players | 29,800 |
 | Bookmaker odds | Opening and closing pre-match prices requested for 499,000 singles matches; 266,000 usable |
 | API | 14 REST routes: live and daily matches, player profiles, head-to-head, point-by-point, Elo leaderboard, win probability |
-| Tests | 57 unit tests and 19 BDD acceptance scenarios; GitLab CI: lint → test → build |
+| Tests | 19 BDD acceptance scenarios plus unit tests; GitLab CI (and a GitHub Actions mirror): lint → test → build |
 
 ## Documents
 
@@ -24,6 +24,49 @@ This repository documents how it is built and what was learned. The source code 
 | [Data sourcing](docs/data_sourcing.md) | How data is collected, archived, parsed and validated; quality flags; diagnosing a collection outage |
 | [Machine learning](docs/machine_learning.md) | Elo ratings, leakage-free features, why the model is hard to improve, the comparison with the betting market, and a pre-registered forward test |
 | [Testing and CI](docs/testing_and_ci.md) | Specification-first development (ATDD / BDD), the throwaway test database, the GitLab pipeline, and a bug it caught |
+
+## Run it yourself
+
+Requires Python 3.12+ and Docker.
+
+```bash
+pip install -r requirements-dev.txt
+
+# Demo database, a synthetic season, and the full pipeline (landing -> archive -> Parquet -> MySQL)
+docker compose -f docker/demo.compose.yml up -d --wait
+export APP_ENV=demo                     # PowerShell: $env:APP_ENV="demo"
+python scripts/make_synthetic_data.py --root ./library --months 6
+python scripts/refresh_racketedge.py --root ./library
+python scripts/train_demo_model.py
+
+# API on http://127.0.0.1:8001 (docs at /docs)
+KEY=$(python scripts/create_api_key.py)
+python -m uvicorn services.api.app_tennis:app --port 8001
+curl -H "X-API-Key: $KEY" "http://127.0.0.1:8001/v1/tennis/elo/leaderboard?tour=atp&page_size=5"
+```
+
+Tests (unit tests + BDD acceptance tests against a throwaway MySQL):
+
+```bash
+docker compose -f docker/test-db.compose.yml up -d --wait
+python -m pytest
+python -m ruff check .
+bash scripts/ci_local.sh                # the whole GitLab pipeline, locally, on a clean checkout
+```
+
+## Code map
+
+| Path | What it is |
+|---|---|
+| `services/api/` | FastAPI public API: routes, data access (one indexed query per endpoint), schemas, API-key auth with rate limits, endpoint flags, error format, prediction |
+| `libs/racketedge/` | Raw-first archive and manifests, landing and hourly fold, clean-layer schema, serving SQL shared by the batch rebuild and the live upsert |
+| `libs/parsers/synthetic/` | Source adapter for the synthetic feed: the same interface as the private production parser, with validation |
+| `libs/synthetic/` | Point-by-point tennis match simulator (deuce, tiebreak serve rotation, best of 3/5, first and second serves, retirements) |
+| `libs/ml/elo.py` | Elo engine: overall and surface ratings, experience-based K, tier weights, surface blending (tuned values private) |
+| `scripts/` | Clean build, loader with atomic table swap, hourly refresh, synthetic data, demo key and model, local CI |
+| `tests/` | BDD acceptance tests (`tests/acceptance/features/*.feature`), pipeline, simulator/adapter and Elo tests |
+| `db/` | Serving schema and API-key tables |
+| `.gitlab-ci.yml`, `.github/workflows/ci.yml`, `Dockerfile` | CI pipelines and the API container |
 
 ## Highlights
 
@@ -39,7 +82,7 @@ Python · FastAPI · MySQL 8 · DuckDB · Parquet · LightGBM / scikit-learn · 
 
 ## Note on data
 
-RacketEdge is a prototype built on publicly available sports data. It is designed so that a licensed data feed plugs in as a new source adapter, without changes downstream.
+RacketEdge is a prototype built on publicly available sports data. It is designed so that a licensed data feed plugs in as a new source adapter (see `libs/parsers/synthetic` for the interface), without changes downstream. All data produced by this repository is synthetic.
 
 ## Licence
 

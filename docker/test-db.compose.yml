@@ -1,0 +1,32 @@
+# Throwaway MySQL for the acceptance tests (tests/acceptance). Never holds real data:
+# separate container and port, no volume (tmpfs: data is gone when the container stops),
+# and the tests refuse to run against a database whose name does not end in "_test".
+#
+#   docker compose -f docker/test-db.compose.yml up -d --wait
+#   python -m pytest
+#   docker compose -f docker/test-db.compose.yml down
+#
+# CI uses the same image as a GitLab service (.gitlab-ci.yml).
+
+name: racket-edge-test
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: racket-edge-test-db
+    environment:
+      MYSQL_ROOT_PASSWORD: test        # test-only credential, not a secret
+      MYSQL_DATABASE: racketedge_test
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+    ports:
+      - "127.0.0.1:3309:3306"
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -ptest --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 40

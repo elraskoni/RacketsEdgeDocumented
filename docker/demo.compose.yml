@@ -1,0 +1,30 @@
+# Local demo database, loaded by scripts/refresh_racketedge.py from synthetic data.
+#
+#   docker compose -f docker/demo.compose.yml up -d --wait
+#
+# Schema (serving tables + API-key tables) is created on first start. Port 3310, localhost only.
+
+name: racketedge-demo
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: racketedge-demo-db
+    environment:
+      MYSQL_ROOT_PASSWORD: demo        # demo-only credential
+      MYSQL_DATABASE: racketedge_demo
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
+      - --local-infile=1               # bulk loads from the clean Parquet layer
+    ports:
+      - "127.0.0.1:3310:3306"
+    volumes:
+      - ../db/racketedge_schema.sql:/docker-entrypoint-initdb.d/01_racketedge_schema.sql:ro
+      - ../db/auth_schema.sql:/docker-entrypoint-initdb.d/02_auth_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pdemo --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 40

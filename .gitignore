@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.ruff_cache/
+.pytest_cache/
+reports/
+gl-code-quality-report.json
+library/
+env/*.env
+!env/demo.env

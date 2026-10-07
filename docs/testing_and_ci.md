@@ -79,8 +79,8 @@ The specification exposed real gaps nobody had noticed, and the code changed to 
 
 ## Unit tests
 
-57 unit tests cover, among other things:
-- **the parser**, against real archived matches, checked against tennis invariants rather than earlier output: tiebreak serve rotation, one game-winning point per game, set scores rebuilt from points;
+Unit tests cover, among other things (this repository contains the tests for its public parts; the production suite has more):
+- **the parser**, checked against tennis invariants rather than earlier output: tiebreak serve rotation, one game-winning point per game, set scores rebuilt from points (production parser against real archived matches; here the synthetic adapter and simulator);
 - **the data pipeline**: landing → archive fold, manifests, the coverage policy, schedule assembly, retries;
 - **the collection health probe**: every failure class;
 - **ratings and features**, including the **leakage test**: changing a match's result must not change that match's own features.

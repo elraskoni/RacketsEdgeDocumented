@@ -1,0 +1,9 @@
+# Allowlist: the build context is only what the API image needs.
+# Everything else (20 GB data/, legacy/, env files, frontend, models) never reaches Docker.
+*
+!Dockerfile
+!requirements.txt
+!config.py
+!services/
+!libs/
+**/__pycache__

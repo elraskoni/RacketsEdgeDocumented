@@ -1,0 +1,22 @@
+# Runtime dependencies: public API, data pipeline, rating model.
+
+# API
+fastapi==0.128.0
+uvicorn==0.40.0
+gunicorn==23.0.0; sys_platform != "win32"
+pydantic==2.12.5
+
+# Database
+PyMySQL==1.1.2
+cryptography==46.0.7   # PyMySQL needs it for MySQL 8 caching_sha2_password logins (first login after a server restart)
+
+# Data
+numpy==2.3.5
+pandas==2.3.3
+pyarrow==22.0.0
+duckdb==1.5.6
+
+# Prediction model (/v1/tennis/predict loads a LightGBM or scikit-learn model)
+joblib==1.5.2
+scikit-learn==1.7.2
+lightgbm==4.6.0
