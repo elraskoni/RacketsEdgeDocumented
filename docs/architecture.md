@@ -1,6 +1,6 @@
 # Architecture
 
-RacketEdge is a tennis data and prediction API: live scores, player profiles, head-to-head, point-by-point logs, Elo ratings and match win probabilities, across every professional tier (ATP, WTA, Challenger, ITF, UTR). This document describes how data flows from collection to the customer, and why it is built that way.
+RacketEdge is a tennis data and prediction API: live scores, player profiles, head-to-head, point-by-point logs, Elo ratings, pre-match win probabilities and live win probability before every point, across every professional tier (ATP, WTA, Challenger, ITF, UTR). This document describes how data flows from collection to the customer, and why it is built that way.
 
 ## Overview
 
@@ -109,7 +109,8 @@ flowchart LR
 |---|---|
 | `matches`, `doubles_matches` | One row per match: tournament, tier, surface, players, phase, outcome, set scores, quality flags |
 | `player_match_stats` | One row per player per singles match. Point and game counts come from the point-by-point log when it is complete, otherwise from vendor statistics marked ok |
-| `pbp_points` | One row per point (ATP/WTA): server, score before and after, break / game / deciding point, game-winning point |
+| `pbp_points` | One row per point (every tier with a log): server, score before and after, break / game / deciding point, game-winning point |
+| `match_prematch` | Each singles match's ratings and win probability *before* it was played; the starting point of the live win-probability model |
 | `player_summary`, `player_form`, `elo_leaderboard` | Precomputed aggregates per player and surface scope |
 | `id_players`, `id_matches`, `id_tournaments` | Append-only public ID maps |
 
@@ -137,7 +138,7 @@ Details: [testing_and_ci.md](testing_and_ci.md).
 
 ## Scale today
 
-- 712,000 matches (568,000 singles, 143,000 doubles), January 2020 → October 2026; 29,800 players; 8.6 million point-by-point rows
+- 712,000 matches (568,000 singles, 143,000 doubles), January 2020 → October 2026; 29,800 players; 58.7 million point-by-point rows
 - Pre-match odds requested for 499,000 singles matches (266,000 usable)
 - Raw archive about 870 MB compressed; clean Parquet about 200 MB; full serving rebuild in under 2 minutes
 

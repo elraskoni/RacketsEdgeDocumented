@@ -1,6 +1,6 @@
 # Machine learning
 
-How RacketEdge rates players and predicts matches, how the models were evaluated, and what the evidence says about where prediction can and cannot improve. All results are on matches the models never saw during training or tuning.
+How RacketEdge rates players and predicts matches, before and during play, how the models were evaluated, and what the evidence says about where prediction can and cannot improve. All results are on matches the models never saw during training or tuning.
 
 ## 1. Starting point: a model that looked too good
 
@@ -114,7 +114,56 @@ That was found after trying about 30 combinations of tier, threshold and timing 
 
 **The claim was rejected.** What survived: the blend still beats the ITF market on unseen data (log-loss gain +0.0019, significant), but by about a third of the earlier gain, and far too little to overcome a 7% margin.
 
-## 8. Conclusions
+## 8. In play: a live win-probability model and a second pre-registered test
+
+The tennis point-by-point archive (58.7 million points, every tier where the source logs it) made a second question possible: **during a match, does a player's history under pressure (break points, tiebreaks, playing from ahead or behind, momentum) predict the winner better than a standard model that already knows pre-match strength and the score?**
+
+### The engine
+
+`libs/ml/markov.py` gives the exact probability that a player wins the match from any score, using the standard model of tennis as a chain of points: each player wins a point on serve with some probability, and the rules (advantage games, tiebreak serve rotation, best of 3 or 5, deciding-set match tiebreaks) do the rest.
+- **Exact, not simulated**: closed forms for deuce and long tiebreaks, recursion elsewhere.
+- **Vectorised**: millions of match states are priced as numpy arrays (5 million in about 40 seconds), which made the test below feasible on the full archive.
+- **Tested against an independent reference**: a deliberately naive point-by-point implementation of the rules, written separately, agrees to 1e-9 on random scores in every format, inside games and tiebreaks (`tests/test_markov.py`).
+
+### The test, written down first
+
+Before any in-play model was built, the question, data windows, models, metric and pass rule were committed:
+- **Data**: 6.3 million game-start states from 317,000 completed singles matches with a complete point log. Train 2020–23, tune on 2024-H1, test **once** on July 2024 → October 2026.
+- **Baseline**: pre-match Elo split into serve-point probabilities, updated by the points played so far, priced by the engine, then recalibrated.
+- **Challenger**: the baseline plus each player's history (strictly from earlier matches, shrunk towards the tier average): break-point performance on serve and return, tiebreaks, serving when ahead versus behind, and in-match momentum.
+- **Metric**: log-loss weighted by **leverage**, how much the match can swing on the next game. A 4-4 game in a deciding set counts far more than 5-1 in the first set; that is where pressure skill would show, and where in-play prices move.
+- **Pass rule**: a gain of at least 0.002 in log-loss with a 98.3% match-level bootstrap interval above zero, separately for the main tour, Challenger and ITF.
+- **Calibration gate**: the baseline must be calibrated on the tuning period before the test may run.
+
+### When the gate failed, and why that mattered
+
+The gate failed twice, which is the gate doing its job: a challenger compared with a weak baseline "wins" by fixing the baseline, not by knowing anything new. Each fix was made on tuning data only, written into the pre-registration as a dated deviation, and approved before the test window was read:
+
+| Problem found | Fix |
+|---|---|
+| A tournament's format (deciding-set match tiebreak) was inferred from other matches; in ITF, qualifying and main draw share an id but not the format | Format per draw, by majority |
+| The baseline treated pre-match strength as known, so it undervalued leads (one set up: predicted 78%, actual 82% on the main tour) | Strength as an uncertain quantity, updated by every point and averaged over |
+| The 0.01 calibration threshold was below what a perfectly calibrated model shows on samples this size | Gate compares against simulations of a perfectly calibrated model on the same matches, plus a calibration-slope check |
+| Recalibration fitted on 2020–21 learned from ratings still warming up (the data starts in 2020) | Fit on 2022–23; a group still failing would be dropped, never adjusted again |
+| One event plays first-to-4-games sets, which the engine does not model; the first test start crashed on it before computing anything | Event excluded |
+
+Generic score terms in the baseline (set lead, game lead) were also tried; they made tuning log-loss worse, so they were not added.
+
+### Result
+
+| Group | Matches | Gain in log-loss | 98.3% interval | Pass |
+|---|---|---|---|---|
+| Main tour | 16,837 | +0.0002 | [−0.0004, +0.0007] | no |
+| Challenger | 28,224 | −0.0004 | [−0.0009, +0.0000] | no |
+| ITF | 51,162 | **+0.0013** | [+0.0007, +0.0018] | no (real, below the bar) |
+
+**The claim was rejected.** On the main tour and Challenger, player pressure histories add nothing beyond overall level. In ITF the gain is real but about 60% of the bar, similar in size to the small pre-match information over ITF prices. The only consistent signal across tiers is **in-match momentum**; break-point and tiebreak records are near zero or change sign between tiers. So "clutch" in the sense that matters for prediction, better under pressure *than one's overall level suggests*, is not detectable with this measure; better players do win their big points, but that is already in their rating.
+
+### What it produced
+
+The calibrated baseline became a product: **`/v1/tennis/event/{id}/winprob`** returns each player's chance of winning before every point and right now, for every tier with a point log, including ITF. On the 2024–26 test window its probabilities match observed outcomes to within about one percentage point on average (calibration error 0.007–0.009).
+
+## 9. Conclusions
 
 - With results-based data, **the market is ahead of the model on every tier**. The model's useful extra information grows down the tiers, towards automated prices in thin markets, but it is small.
 - The process mattered more than any single number:
@@ -123,7 +172,9 @@ That was found after trying about 30 combinations of tier, threshold and timing 
   - significance intervals on every comparison;
   - a look-ahead bug caught;
   - a promising result written down with its pass/fail rule before it was tested.
+- In play, the same discipline held: the gate failures were fixed on tuning data and documented before the test, and the result is reported as it came out.
 - **Next directions:**
-  - information that results do not contain (player profiles such as handedness, height and age; in-play point-by-point data, where information grows with every point);
-  - lower-margin prices for comparison;
-  - retraining with more recent seasons, tested again only on future matches.
+  - in-play prices, to measure the live model against the market rather than against itself;
+  - pressure measured on every point weighted by its importance (far more data per player than break points alone), tested forward on new matches;
+  - a longer rating history before 2020, so ratings have settled when the data starts;
+  - information that results do not contain (player profiles such as handedness, height and age).

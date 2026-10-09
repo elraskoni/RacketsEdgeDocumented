@@ -8,7 +8,7 @@ How match data gets from a third-party source into a validated, queryable form, 
 |---|---|---|
 | Schedule and results | Every match: players, tournament, tier, surface, round, status, set and tiebreak scores | All tiers |
 | Match statistics | Aces, double faults, first-serve %, service and return points, break points, games | ATP, WTA, Challenger, WTA 125 |
-| Point-by-point | Every point in order, with server and score | ATP, WTA |
+| Point-by-point | Every point in order, with server and score | Every tier where the source logs it: nearly all ATP / WTA / Challenger / UTR matches, about two thirds of ITF matches |
 | Pre-match odds | Opening and closing prices per player | All tiers where published |
 
 Details are fetched only for matches that have started, and a finished match gets one final fetch so its numbers are complete.
@@ -76,6 +76,10 @@ The fix was a configuration change, not a paid service. The same investigation f
 - Connections are reused, so per-connection handshake overhead (larger than many responses) is paid once per session, not per request.
 - Every collector is **resumable** and skips what is already stored. Bulk jobs process items in a fixed random order, so the first N are a fair sample for checking cost and coverage before committing to a full run.
 - A full backfill of five months (69,642 matches, 148 days) and 499,000 odds requests together used well under 0.5 GB of paid traffic.
+
+## Coverage gaps: ours or the source's?
+
+Auditing coverage by month showed that ITF point-by-point was missing for every match from January 2025 to February 2026, and that 2025 listed about half as many ITF matches as 2024. Before treating it as lost data, the gap was tested: the full schedule for those months was fetched again and point-by-point was requested for a sample of matches. The re-fetch added about 1% more matches and every point-by-point request returned "not found", so the gap is at the source, not in collection. The re-scrape was stopped once that was clear, and the gap is documented wherever it matters (for example, the in-play test window in [machine_learning.md](machine_learning.md) accounts for it).
 
 ## Source independence
 

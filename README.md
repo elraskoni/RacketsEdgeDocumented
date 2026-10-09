@@ -10,11 +10,11 @@ This repository contains the codebase and its documentation. Two parts are priva
 |---|---|
 | Coverage | Every professional tier: ATP, WTA, Challenger / WTA 125, ITF, UTR, team events |
 | Matches | 712,000 (568,000 singles, 143,000 doubles), January 2020 → October 2026 |
-| Point-by-point | 8.6 million points with server, score and break / game / deciding-point flags |
+| Point-by-point | 58.7 million points with server, score and break / game / deciding-point flags, on every tier where the source logs it (including ITF) |
 | Players | 29,800 |
 | Bookmaker odds | Opening and closing pre-match prices requested for 499,000 singles matches; 266,000 usable |
-| API | 14 REST routes: live and daily matches, player profiles, head-to-head, point-by-point, Elo leaderboard, win probability |
-| Tests | 19 BDD acceptance scenarios plus unit tests; GitLab CI (and a GitHub Actions mirror): lint → test → build |
+| API | 15 REST routes: live and daily matches, player profiles, head-to-head, point-by-point, Elo leaderboard, pre-match win probability, and **live win probability before every point** |
+| Tests | 19 BDD acceptance scenarios plus unit tests (including the win-probability engine against a point-by-point reference); GitLab CI (and a GitHub Actions mirror): lint → test → build |
 
 ## Documents
 
@@ -22,7 +22,7 @@ This repository contains the codebase and its documentation. Two parts are priva
 |---|---|
 | [Architecture](docs/architecture.md) | System design from collection to customer, key design decisions, serving layer, data model, and how it maps to AWS |
 | [Data sourcing](docs/data_sourcing.md) | How data is collected, archived, parsed and validated; quality flags; diagnosing a collection outage |
-| [Machine learning](docs/machine_learning.md) | Elo ratings, leakage-free features, why the model is hard to improve, the comparison with the betting market, and a pre-registered forward test |
+| [Machine learning](docs/machine_learning.md) | Elo ratings, leakage-free features, why the model is hard to improve, the comparison with the betting market, two pre-registered tests (pre-match betting edge, in-play pressure), and the live win-probability model |
 | [Testing and CI](docs/testing_and_ci.md) | Specification-first development (ATDD / BDD), the throwaway test database, the GitLab pipeline, and a bug it caught |
 
 ## Run it yourself
@@ -63,6 +63,7 @@ bash scripts/ci_local.sh                # the whole GitLab pipeline, locally, on
 | `libs/parsers/synthetic/` | Source adapter for the synthetic feed: the same interface as the private production parser, with validation |
 | `libs/synthetic/` | Point-by-point tennis match simulator (deuce, tiebreak serve rotation, best of 3/5, first and second serves, retirements) |
 | `libs/ml/elo.py` | Elo engine: overall and surface ratings, experience-based K, tier weights, surface blending (tuned values private) |
+| `libs/ml/markov.py` | Exact, vectorised tennis win-probability engine: any score, inside games and tiebreaks, best of 3 / 5, match tiebreaks; tested against an independent point-by-point reference |
 | `scripts/` | Clean build, loader with atomic table swap, hourly refresh, synthetic data, demo key and model, local CI |
 | `tests/` | BDD acceptance tests (`tests/acceptance/features/*.feature`), pipeline, simulator/adapter and Elo tests |
 | `db/` | Serving schema and API-key tables |
@@ -75,6 +76,7 @@ bash scripts/ci_local.sh                # the whole GitLab pipeline, locally, on
 - **Ratings tuned honestly.** Elo parameters were chosen on one season and confirmed on a later one never used for tuning: main-tour accuracy 61.0% → 66.1%.
 - **Measured against the market.** Model probabilities were compared with bookmaker prices on every tier. The market wins head to head; the model carries extra information only in the lower tiers.
 - **A claim tested before it was believed.** A profitable-looking betting edge in ITF was written down with its pass/fail rule before new data existed, then tested on five unseen months. It failed, and the documents say so.
+- **A second test, run the same way.** Whether players' pressure records predict in-play results beyond a calibrated live model was pre-registered, with a calibration gate. The gate failed twice; each fix was made on tuning data and documented before the single test run. The claim was rejected (only in-match momentum carries signal), and the calibrated live model became a product: win probability before every point, for every tier including ITF.
 
 ## Stack
 
